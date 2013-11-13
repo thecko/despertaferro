@@ -1,0 +1,49 @@
+body, table{
+	font-size: 9pt;
+}
+
+body{
+	margin: 5px;
+	padding: 0px;
+	background: #FFFFFF;
+	color: #000000;
+	font-size: 8pt;
+	font-family: verdana;
+	background-image: url('../images/topBG.png');
+	background-position: 0% 0%;
+	background-repeat: repeat-x;
+}
+
+#site{
+	margin-top: 60px;
+	width: 100%;
+	z-index: 10;
+	clear: left;
+	text-align: center;
+}
+
+.tblFicha{
+	background-color: #000000;
+}
+
+.tblFicha th{
+	color: #FFFFFF;
+}
+
+.tblFicha td{
+	background-color: #FFFFFF;
+}
+
+.oculto{
+	display: none;
+}
+
+.tabulacion{
+	margin-left: 5px;
+}
+
+.caja{
+	border: solid 1px #666666;
+	background-color: #EEEEEE;
+	padding: 5px;
+}
