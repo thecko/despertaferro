@@ -1,26 +1,19 @@
 <?php
-function generarParametros($arr)
-{
-	return json_encode($arr);
-}
-
-function recuperarParametro($json,$parametro,$valorDefecto)
-{
-	$arr = json_decode($json, true);
-	$valor = $valorDefecto;
-	if (isset($arr[$parametro]))
-	{
-		$valor = $arr[$parametro];
-	}
-	return $valor;
-}
-	
+/**
+ * @brief Creates an "unique" seed based on the current time
+ * @returns and integer seed
+ */
 function make_seed()
 {
   list($usec, $sec) = explode(' ', microtime());
   return (int)$sec;
 }
 
+/**
+ * @brief Shuffle an assoc array "rows"
+ * @param $array The array to be shuffled
+ * @returns The shuffled array
+ */
 function rec_assoc_shuffle(&$array) {
 	$keys = array_keys($array);
 
@@ -35,6 +28,12 @@ function rec_assoc_shuffle(&$array) {
 	return true;
 }
 	
+/**
+ * @brief Returns the value of a $nombre var in the GET and POST
+ * @param $nombre The variable name
+ * @param $valorDefecto The value if not found
+ * @returns The variable value or the $valorDefecto's value
+ */
 function getVar($nombre,$valorDefecto)
 {
 	// Sobresuponemos mal
@@ -58,6 +57,17 @@ function getVar($nombre,$valorDefecto)
 
 	return $res;
 }
+
+/**
+ * @brief Converts a data text file into an assoc array
+ * @param $path The path to the file
+ * @returns An numeric-assoc array with the pair key-values set
+ * The data is stored in text files, First line as data headers and 
+ * every line it's a row, and columns tab separated. 
+ * This function will convert the file into a numeric array with every 
+ * line (row in the dataset) of assoc arrays with the key-value
+ * corresponding to the column header - column row value.
+ */
 function parseFile($path){
 	$res = false;
 	
@@ -90,34 +100,23 @@ function parseFile($path){
 	return $res;
 }
 
-function array2JSON($data){
-	$res = "";
-	if ( is_array($data) ){
-		$res = "[";
-		foreach ( $data as $regId=>$reg ){
-			$res .= "{";
-			foreach ( $reg as $campo=>$valor )
-			{
-				$res .= "\"" . $campo . "\":\"" . $valor . "\",";
-			}
-			$res = substr($res,0,strlen($res)-1);
-			$res .= "},";
+/**
+ * @brief Strips the last $str's char. If set, if it's the $thatChar char
+ * @param $str The String to be stripped
+ * @param $thatChar If set, will only strip the last char if its this char
+ * @returns The stripped String
+ */
+function stripLastChar($str,$thatChar=""){
+	if (strlen($str) > 0)
+	{
+		$lastChar = substr($str, -1);
+		if ( ($lastChar == $thatChar) || ($thatChar=="") )
+		{
+			$str = substr($str, 0,strlen($str) - 1);
 		}
-		$res = substr($res,0,strlen($res)-1);
-		$res .= "]";
 	}
 	
-	return $res;
-}
-
-function test(){
-	$ruta = "./data/es/skills.php";
-	$data = parseFile($ruta);
-
-	if ( $data ){
-		$res = array2JSON($data);
-		echo $res;
-	}
+	return $str;
 }
 
 /*
@@ -404,23 +403,9 @@ function browserLanguages()
 	return $a_languages;
 }
 
-function generateChar(){
-	$seed = getVar("seed",make_seed());
-	$edition = getVar("edition","2");
-	
-	$charClass = "Character_".$edition;
-
-	$char = new $charClass();
-	
-	$params = array(
-		"seed"	=>	$seed
-	);
-	
-	$char->generate(generarParametros($params));
-	
-	echo $char->toJSON();
-}
-
+/**
+ * @brief Ajax landing function for combat generation
+ */
 function doCombat(){
 	$num = getVar("num",1);
 	
@@ -502,11 +487,30 @@ function generateLangJSON($data){
 	return $res;
 }
 
+/**\deprecated use throw1o3dN instead
+ * @brief 
+ * @param $obj 
+ * @param $base 
+ * @param $iBonus 
+ * @returns 
+ * 
+ * 
+ */
 function throw1o3d10($obj, $base=10 , $iBonus=0){	
 	return throw1o3dN( $obj , $base , $iBonus );
 }
 
-// TODO Add the blunt system. Returning false if 1 in the objetive dice and <= 5 in the next dice 
+/**
+ * @brief Simulates a 3 $base dice throw returning the $obj dice.
+ * @param $obj It can be the Low, mid or high dice. Use DICE_LOW, DICE_MED, DICE_HIG constants
+ * @param $base The base dice, 10 by default as RyF's standart
+ * @param $iBonus A bonus to the Throw, only applied if it's not a blunt.
+ * @returns The total throw result or false if blunt
+ * It'll get the objective dice and check if there's a blunt or critic 
+ * (with the base number in the objective dice result, 
+ * it'll throw and sum again).
+ */
+ // TODO Add the blunt system. Returning false if 1 in the objetive dice and <= 5 in the next dice 
 function throw1o3dN($obj, $base=10 , $iBonus=0 ){
 	$logText = "Tirada 1o3d".$base . ":";
 	$total = 0;
@@ -523,7 +527,7 @@ function throw1o3dN($obj, $base=10 , $iBonus=0 ){
 	
 	$logText .= $total;
 	
-	// If bonus, apply it	
+	// If bonus, apply it
 	$total += $iBonus;
 	$logText .= ($iBonus!=0 ? " + " . $iBonus : '' );
 	
@@ -532,6 +536,15 @@ function throw1o3dN($obj, $base=10 , $iBonus=0 ){
 	return $total;
 }
 
+/**
+ * @brief Simulates a throw with explosion of NdD
+ * @param $num The number of dices to throw
+ * @param $base The base dicem d6, d10, etc.
+ * @param $iBonus A bonus to the final result
+ * @returns The total amount of the dice throw
+ * If any dice result it's the base number, it'll throw it again and sum
+ * to the final result.
+ */
 function throwNdD($num, $base , $iBonus=0){
 	$logText = "Tirada " . $num . "d".$base . ":";
 	$total = 0;
@@ -561,19 +574,13 @@ function throwNdD($num, $base , $iBonus=0){
 	return $total;
 }
 
-function stripLastChar($str,$thatChar=""){
-	if (strlen($str) > 0)
-	{
-		$lastChar = substr($str, -1);
-		if ( ($lastChar == $thatChar) || ($thatChar=="") )
-		{
-			$str = substr($str, 0,strlen($str) - 1);
-		}
-	}
-	
-	return $str;
-}
-
+/**
+ * @brief Converts a wound Id to his localized name
+ * @param $idx The Wound Id
+ * @returns The Wound name
+ * This function will check the lang array to extract the "herida_<ID>"
+ * text.
+ */
 function woundsName( $idx ){
 	global $langCom;
 	return $langCom["herida_".$idx]["texto"];
