@@ -20,6 +20,7 @@ class Combat{
 	function doCombat(){
 		$this->pjMuerto = null;
 		$this->pjVivo = null;
+		combatLogger::instance()->newCombat();
 		combatLogger::instance()->newTurn();
 		
 		// Before the combats starts, do a battlecry
@@ -73,7 +74,7 @@ class Combat{
 			
 			// Apply bleeding effect if present
 			$this->pj1->hp -= $this->pj1->wounds[ WOUND_BLEED ];
-			combatLogger::instance()->currentTurn->bleeding1 = $this->pj1->wounds[ WOUND_BLEED ];
+			combatLogger::instance()->setBleeding( 1 , $this->pj1->wounds[ WOUND_BLEED ] );
 			
 			// Does pj1 dies?
 			if( !$this->isAlive( $this->pj1 , $this->pj2 ) ){
@@ -81,8 +82,8 @@ class Combat{
 			}
 			
 			// Apply bleeding effect if present
-			$this->pj2->hp -= $this->pj2->wounds[ WOUND_BLEED ];				
-			combatLogger::instance()->currentTurn->bleeding2 = $this->pj2->wounds[ WOUND_BLEED ];
+			$this->pj2->hp -= $this->pj2->wounds[ WOUND_BLEED ];
+                        combatLogger::instance()->setBleeding( 2 , $this->pj2->wounds[ WOUND_BLEED ] );
 			
 			// Does pj1 dies?
 			if( !$this->isAlive( $this->pj2 , $this->pj1 ) ){
@@ -177,8 +178,8 @@ class Combat{
 			$this->pjMuerto = $defender;
 			$this->pjVivo = $attacker;
 			
-			combatLogger::instance()->winner = $this->pjVivo;
-			combatLogger::instance()->loser = $this->pjMuerto;
+			combatLogger::instance()->setWinner($this->pjVivo);
+			combatLogger::instance()->setLoser($this->pjMuerto);
 			
 			$alive = false;
 		}
@@ -486,14 +487,18 @@ class CombatPj{
 }
 
 class combatLogger {
-	
-	var $currentTurn;
-	var $winner;
-	var $loser;
-	var $pj1;
-	var $pj2;
-	
-	public static function Instance()
+    var $currentCombat;
+    var $winner;
+    var $loser;
+    var $pj1;
+    var $pj2;
+    var $combats;
+    
+    private function __construct(){
+        $this->combats = array();
+    }
+        
+    public static function Instance()
     {
         static $inst = null;
         if ($inst === null) {
@@ -502,68 +507,105 @@ class combatLogger {
         return $inst;
     }
     
-    public function __destruct(){
-		static $inst = null;
-	}
+    public function newCombat(){
+        $combat = new combatLog( $this->pj1 , $this->pj2 );
+        $this->currentCombat = &$combat;
+
+        array_push( $this->combats , $this->currentCombat );
+    }
     
-    /**
-     * Private ctor so nobody else can instance it
-     *
-     */
-    private function __construct()
+    public function newTurn(){
+        $this->currentCombat->newTurn();
+    }
+    
+    public function newAction(){
+        $this->currentCombat->newAction();
+    }
+    
+    public function logAction( $sText ){
+        $this->currentCombat->logAction( $sText );
+    }
+    
+    public function setBleeding( $iNumPj , $iBleeding ){
+        $sProperty = "bleeding$iNumPj";
+        $this->currentCombat->currentTurn->$sProperty = $iBleeding;
+    }
+    
+    public function setWinner( $oPj ){
+        $this->currentCombat->winner = $oPj;
+    }
+    
+    public function setLoser( $oPj ){
+        $this->currentCombat->loser = $oPj;
+    }
+}
+
+class combatLog {
+	
+    var $currentTurn;
+    var $winner;
+    var $loser;
+    var $pj1;
+    var $pj2;
+    
+    function __construct( $pj1 , $pj2)
     {
-		$this->turns = array();
+        $this->pj1      = $pj1;
+        $this->pj2      = $pj2;
+        $this->winner   = null;
+        $this->loser    = null;
+        $this->turns    = array();
     }
 	    
-    public function logAction( $msg ){
-		$this->currentTurn->logAction( $msg );
-	}
+    public function logAction( $sText ){
+        $this->currentTurn->logAction( $sText );
+    }
 	
-	public function newTurn(){
-		$turn = new combatTurn();
-		$this->currentTurn = &$turn;
-		
-		array_push( $this->turns , $this->currentTurn );
-	}
-	
-	public function newAction(){
-		$this->currentTurn->newAction();
-	}
+    public function newTurn(){
+        $turn = new combatTurn();
+        $this->currentTurn = &$turn;
+
+        array_push( $this->turns , $this->currentTurn );
+    }
+
+    public function newAction(){
+            $this->currentTurn->newAction();
+    }
 }
 
 class combatTurn{
-	var $actions;
-	var $currentAction;
-	var $bleeding1;
-	var $bleeding2;
-	
-	public function __construct()
+    var $actions;
+    var $currentAction;
+    var $bleeding1;
+    var $bleeding2;
+
+    public function __construct()
     {
-		$this->actions = array();
+        $this->actions = array();
     }
-	
-	public function logAction( $msg ){
-		$this->currentAction->logAction( $msg );
-	}
-	
-	public function newAction(){
-		$action = new combatAction();
-		$this->currentAction = &$action;
-		array_push( $this->actions , $this->currentAction );
-	}
+
+    public function logAction( $msg ){
+        $this->currentAction->logAction( $msg );
+    }
+
+    public function newAction(){
+            $action = new combatAction();
+            $this->currentAction = &$action;
+            array_push( $this->actions , $this->currentAction );
+    }
 }
 
 class combatAction{
-	var $text;
-	
-	public function __construct()
+    var $text;
+    
+    public function __construct()
     {
-		$text = "";
+        $text = "";
     }
 	
-	public function logAction( $msg ){
-		$this->text .= $msg;
-	}
+    public function logAction( $msg ){
+        $this->text .= $msg;
+    }
 }
 
 class D6ScaleElement {

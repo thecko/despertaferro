@@ -441,7 +441,6 @@ function doCombat(){
 	$cont2 = 0;
 	
 	$log = array();
-	$log["combates"] = array();
 	
 	for($i=0;$i<$num;$i++){
 		$pj1 = new CombatPj($name1, $fis1, $abs1, $att1, $def1, $wND1, $wBD1,$wMD1,$ini1,$tac1, $com1, $wpn1);
@@ -455,13 +454,10 @@ function doCombat(){
 		else{
 			$cont2++;
 		}
-		
-		//array_push( $log["combates"] , $combate->combatLog );
-		array_push( $log["combates"] , clone(combatLogger::instance()) );
-		combatLogger::instance()->__destruct ();
-	}	
+	}
 	
-	$log["victorias1"] = $cont1;
+        $log["log"] = combatLogger::instance();
+        $log["victorias1"] = $cont1;
 	$log["victorias2"] = $cont2;
 		
 	/*
