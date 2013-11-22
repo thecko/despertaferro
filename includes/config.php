@@ -1,4 +1,7 @@
 <?php
+	define("THROW_BLUNT",-1);
+	define("THROW_FAIL",0);
+        
 	define("DICE_LOW",0);
 	define("DICE_MED",1);
 	define("DICE_HIG",2);

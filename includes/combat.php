@@ -18,333 +18,345 @@ class Combat{
 	}
 	
 	function doCombat(){
-		$this->pjMuerto = null;
-		$this->pjVivo = null;
-		combatLogger::instance()->newCombat();
-		combatLogger::instance()->newTurn();
-		
-		// Before the combats starts, do a battlecry
-		combatLogger::instance()->newAction();
-		$this->pj1->battleCry();
-		combatLogger::instance()->newAction();
-		$this->pj2->battleCry();
-		
-		
-		// Calculamos la iniciativa de este combate
-		combatLogger::instance()->newAction();
-		combatLogger::instance()->logAction( "Iniciativa de " . $this->pj1->name . ". " );
-		$iPj1IniThrow = throw1o3d10( $this->pj1->objDice , BASE_DICE , $this->pj1->atkBonus );
-		// TODO: Add the Blund check
-		$this->ini1 = $this->pj1->ini + $iPj1IniThrow ;
-		combatLogger::instance()->logAction( " + " . $this->pj1->ini . " = " .  $this->ini1);
-		
-		combatLogger::instance()->newAction();		
-		combatLogger::instance()->logAction( "Iniciativa de " . $this->pj2->name . ". " );
-		$iPj2IniThrow = throw1o3d10( $this->pj2->objDice  , BASE_DICE , $this->pj2->atkBonus);
-		$this->ini2 = $this->pj2->ini + $iPj2IniThrow;
-		combatLogger::instance()->logAction( " + " . $this->pj2->ini . " = " .  $this->ini2);
-		
-		combatLogger::instance()->newAction();
-		$this->pj1->calNumActions($this->ini1);
-		combatLogger::instance()->logAction( $this->pj1->name . " tendrá " . $this->pj1->actions . " accion(es)");
-		
-		combatLogger::instance()->newAction();
-		$this->pj2->calNumActions($this->ini2);
-		combatLogger::instance()->logAction( $this->pj2->name . " tendrá " . $this->pj2->actions . " accion(es)");
-		
-		// Cambiamos el orden si fuera necesario		
-		if( $this->ini2 > $this->ini1 ){
-			
-			combatLogger::instance()->newAction();
-			combatLogger::instance()->logAction( "Intercambiamos posiciones porque " . $this->pj2->name . " es más rápido que " . $this->pj1->name . "." );
-			
-			$tmpPj = $this->pj1;
-			$this->pj1 = $this->pj2;
-			$this->pj2 = $tmpPj;
-			
-			$tmpIni = $this->ini1;
-			$this->ini1 = $this->ini2;
-			$this->ini2 = $tmpIni;
-		}
-		
-		
-		$this->turno = 1;		
-		while ( $this->pjMuerto == null ){			
-			combatLogger::instance()->newTurn();
-			
-			// Apply bleeding effect if present
-			$this->pj1->hp -= $this->pj1->wounds[ WOUND_BLEED ];
-			combatLogger::instance()->setBleeding( 1 , $this->pj1->wounds[ WOUND_BLEED ] );
-			
-			// Does pj1 dies?
-			if( !$this->isAlive( $this->pj1 , $this->pj2 ) ){
-				continue;
-			}
-			
-			// Apply bleeding effect if present
-			$this->pj2->hp -= $this->pj2->wounds[ WOUND_BLEED ];
-                        combatLogger::instance()->setBleeding( 2 , $this->pj2->wounds[ WOUND_BLEED ] );
-			
-			// Does pj1 dies?
-			if( !$this->isAlive( $this->pj2 , $this->pj1 ) ){
-				continue;
-			}
-			
-			// Distance calculation
-			$this->calculateDistance($this->pj1,$this->pj2);
-			
-			/**************
-			 *  Pj1
-			 **************/
-			$text = "";
-			
-			// If in shock, will not be any action
-			if( $this->pj1->wounds[ WOUND_SHOCK ] ){
-				// Remove the shock status
-				$this->pj1->wounds[ WOUND_SHOCK ] = false;
-				$text .= "No hay acción debido a Shock";
-				
-				combatLogger::instance()->newAction();
-				combatLogger::instance()->logAction( "No hay acción debido a Shock" );
-			}
-			else{				
-				for ( $i = 0; $i < $this->pj1->actions ; $i++){
-					combatLogger::instance()->newAction();
-					
-					if( $this->pj1->canAttack() ){
-						$atk = $this->attack($this->pj1,$this->pj2);
-						
-						// Does pj2 dies?
-						if( !$this->isAlive( $this->pj2 , $this->pj1 ) ){
-							continue;
-						}
-					}
-					else{
-						combatLogger::instance()->logAction( $this->pj1->name . " no puede atacar " );
-					}
-				}				
-			}
-			$aTurno["accion1"] = $text;
-			
-			if ( $this->pjMuerto == "" ){
-			
-				/**************
-				*  Pj2
-				**************/
-				
-				$text = "";			
-				// If in shock, will not be any action
-				if( $this->pj2->wounds[ WOUND_SHOCK ] ){
-					// Remove the shock status
-					$this->pj2->wounds[ WOUND_SHOCK ] = false;
-					$text .= "No hay acción debido a Shock";
-					
-					combatLogger::instance()->newAction();
-					combatLogger::instance()->logAction( "No hay acción debido a Shock" );
-				}
-				else{
-					for ( $i = 0; $i < $this->pj2->actions ; $i++){
-						combatLogger::instance()->newAction();
-						
-						if( $this->pj2->canAttack() ){
-							$atk = $this->attack($this->pj2,$this->pj1);
-							
-							// Does pj1 dies?
-							if( !$this->isAlive( $this->pj1 , $this->pj2 ) ){
-								continue;
-							}
-						}
-						else{
-							combatLogger::instance()->logAction( $this->pj2->name . " no puede atacar" );
-						}
-					}
-				}
-			}
-			
-			//array_push( $this->combatLog["turnos"] , $aTurno );
-			
-			$this->turno++ ;
-		}
-		$this->combatLog["ganador"] = $this->pjVivo->name . " (" . $this->pjVivo->hp . "pv restantes)";
-		$this->combatLog["perdedor"] = $this->pjMuerto->name;
-		
-		return true;
-	}
+            $this->pjMuerto = null;
+            $this->pjVivo = null;
+            combatLogger::instance()->newCombat();
+            combatLogger::instance()->newTurn();
+
+            // Before the combats starts, do a battlecry
+            combatLogger::instance()->newAction();
+            $this->pj1->battleCry();
+            combatLogger::instance()->newAction();
+            $this->pj2->battleCry();
+
+            // Initiative calculation for this combat
+            combatLogger::instance()->newAction();
+            $this->ini1 = $this->pj1->initiative();
+            combatLogger::instance()->newAction();
+            $this->ini2 = $this->pj2->initiative();
+
+            // Number of actions
+            combatLogger::instance()->newAction();
+            $this->pj1->calNumActions();
+            combatLogger::instance()->newAction();
+            $this->pj2->calNumActions();
+
+            // Cambiamos el orden si fuera necesario		
+            if( $this->ini2 > $this->ini1 ){
+
+                combatLogger::instance()->newAction();
+                combatLogger::instance()->logAction( "Intercanviem possicions per que" . $this->pj2->name . " es més ràpid que " . $this->pj1->name . "." );
+
+                $tmpPj = $this->pj1;
+                $this->pj1 = $this->pj2;
+                $this->pj2 = $tmpPj;
+
+                $tmpIni = $this->ini1;
+                $this->ini1 = $this->ini2;
+                $this->ini2 = $tmpIni;
+            }
+
+            $this->turno = 1;		
+            while ( $this->pjMuerto == null ){			
+                combatLogger::instance()->newTurn();
+
+                // Apply bleeding effect if present
+                $this->pj1->hp -= $this->pj1->wounds[ WOUND_BLEED ];
+                combatLogger::instance()->setBleeding( 1 , $this->pj1->wounds[ WOUND_BLEED ] );
+
+                // Does pj1 dies?
+                if( !$this->isAlive( $this->pj1 , $this->pj2 ) ){
+                    continue;
+                }
+
+                // Apply bleeding effect if present
+                $this->pj2->hp -= $this->pj2->wounds[ WOUND_BLEED ];
+                combatLogger::instance()->setBleeding( 2 , $this->pj2->wounds[ WOUND_BLEED ] );
+
+                // Does pj2 dies?
+                if( !$this->isAlive( $this->pj2 , $this->pj1 ) ){
+                    continue;
+                }
+
+                // Distance calculation
+                $this->calculateDistance($this->pj1,$this->pj2);
+
+                /**************
+                *  Pj1
+                **************/
+                $text = "";
+
+                // If in shock, will not be any action
+                if( $this->pj1->wounds[ WOUND_SHOCK ] ){
+                    // Remove the shock status
+                    $this->pj1->wounds[ WOUND_SHOCK ] = false;
+                    combatLogger::instance()->newAction();
+                    combatLogger::instance()->logAction( "No hi ha acció degut a conmoció" );
+                }
+                // Can't attack due to initiative blunt
+                elseif( $this->pj1->iIniBonus == THROW_BLUNT && $this->turno==1){
+                    combatLogger::instance()->newAction();
+                    combatLogger::instance()->logAction( "No hi ha acció degut a pifia a iniciativa" );
+                }
+                else{				
+                    for ( $i = 0; $i < $this->pj1->actions ; $i++){
+                        combatLogger::instance()->newAction();
+
+                        if( $this->pj1->canAttack() ){
+                            $atk = $this->attack($this->pj1,$this->pj2);
+
+                            // Does pj2 dies?
+                            if( !$this->isAlive( $this->pj2 , $this->pj1 ) ){
+                                continue;
+                            }
+                        }
+                        else{
+                            combatLogger::instance()->logAction( $this->pj1->name . " no pot atacar " );
+                        }
+                    } // for every action
+                }
+                $aTurno["accion1"] = $text;
+
+                if ( $this->pjMuerto == "" ){
+
+                    /**************
+                    *  Pj2
+                    **************/
+
+                    $text = "";			
+                    // If in shock, will not be any action
+                    if( $this->pj2->wounds[ WOUND_SHOCK ] ){
+                        // Remove the shock status
+                        $this->pj2->wounds[ WOUND_SHOCK ] = false;
+
+                        combatLogger::instance()->newAction();
+                        combatLogger::instance()->logAction( "No hi ha acció degut a conmoció" );
+                    }
+                    // Can't attack due to initiative blunt
+                    elseif( $this->pj2->iIniBonus == THROW_BLUNT && $this->turno==1){
+                        combatLogger::instance()->newAction();
+                        combatLogger::instance()->logAction( "No hi ha acció degut a pifia a iniciativa" );
+                    }
+                    else{
+                        for ( $i = 0; $i < $this->pj2->actions ; $i++){
+                            combatLogger::instance()->newAction();
+
+                            if( $this->pj2->canAttack() ){
+                                $atk = $this->attack($this->pj2,$this->pj1);
+
+                                // Does pj1 dies?
+                                if( !$this->isAlive( $this->pj1 , $this->pj2 ) ){
+                                    continue;
+                                }
+                            }
+                            else{
+                                combatLogger::instance()->logAction( $this->pj2->name . " no pot atacar" );
+                            }
+                        } // For every action
+                    }
+                }
+                $this->turno++ ;
+            }
+            $this->combatLog["ganador"] = $this->pjVivo->name . " (" . $this->pjVivo->hp . "pv restants)";
+            $this->combatLog["perdedor"] = $this->pjMuerto->name;
+
+            return true;
+	} // Do combat
 	
 	function isAlive( &$defender , &$attacker ){
-		$alive = true;
-		if ( $defender->hp <= 0 ){	
-			$defender->status = STATUS_DEAD;
-			$this->pjMuerto = $defender;
-			$this->pjVivo = $attacker;
-			
-			combatLogger::instance()->setWinner($this->pjVivo);
-			combatLogger::instance()->setLoser($this->pjMuerto);
-			
-			$alive = false;
-		}
-		
-		return $alive;
+            $alive = true;
+            if ( $defender->hp <= 0 ){	
+                $defender->status = STATUS_DEAD;
+                $this->pjMuerto = $defender;
+                $this->pjVivo = $attacker;
+
+                combatLogger::instance()->setWinner($this->pjVivo);
+                combatLogger::instance()->setLoser($this->pjMuerto);
+
+                $alive = false;
+            }
+
+            return $alive;
 	}
 	
 	function attack(&$attacker, &$defender){
-		$damage = 0;
+            $damage = 0;
 		
-		combatLogger::instance()->logAction( $attackLog = "Tirada de ataque de " . $attacker->name . ". " );
-		$throw = throw1o3dN( $attacker->getObjDice() , BASE_DICE , $attacker->atkBonus );	
+            combatLogger::instance()->logAction( $attackLog = "Tirada d'atac de " . $attacker->name . ". " );
+            $throw = throw1o3dN( $attacker->getObjDice() , BASE_DICE , $attacker->atkBonus );	
+            
+            if( $throw != THROW_FAIL && $throw != THROW_BLUNT ){
 		
-		// Apply the pain wound if present
-		$throw -= (WOUND_PAIN_MODIFIER * $attacker->wounds[ WOUND_PAIN ] );
+                // Apply the pain wound if present
+                $throw -= (WOUND_PAIN_MODIFIER * $attacker->wounds[ WOUND_PAIN ] );
+
+                combatLogger::instance()->logAction( ". Restem " . (WOUND_PAIN_MODIFIER * $attacker->wounds[ WOUND_PAIN ] ) . " degut a ferides de dolor." );
+
+                combatLogger::instance()->logAction( " La tirada d'atac es de " . ($throw + $attacker->attack) . " contra una defensa de " . $defender->def . "." );
+
+                // Hit
+                $weaponDamage = 0;
+                if ( ($throw + $attacker->attack) >= $defender->def){
+                    $extraDices =  (int)(($throw + $attacker->attack - $defender->def) / 5);
+
+                    combatLogger::instance()->logAction( " Donem, superem per " . ($throw + $attacker->attack - $defender->def) . " la defensa de l'enemic. Llancem " . ($attacker->weaponNumDices + $extraDices) . " daus de mal. " );
+
+                    // Damage
+                    $weaponDamage = throwNdD($attacker->weaponNumDices + $extraDices,$attacker->weaponBaseDice)  + $attacker->weaponModificator;
+
+                    if($attacker->weaponModificator!=0)
+                    combatLogger::instance()->logAction("+" .$attacker->weaponModificator);
+
+                    combatLogger::instance()->logAction( " total de " . $weaponDamage );
+
+                    $damage =  $weaponDamage - $defender->absortion;
+                    if( $defender->absortion > 0 ){
+                        combatLogger::instance()->logAction( " que menys l'absorció de " . $defender->absortion . " ens deixa un total de mal de " . $damage );
+                    }
+
+                    // Hemos hecho daño?
+                    if ( $damage > 0 ){
+                        // miramos si cambiamos el dado objetivo por estar malherido
+                        /*
+                            if ( $defender->hp <= $defender->fis ){
+                                $defender->objDice = DICE_LOW;
+                            }
+                        */
+                        // Wounded?
+                        if( $damage >= ($defender->fis * CRITICAL_DAMAGE) ){
+                            $iNumWounds = floor( $damage / ($defender->fis * CRITICAL_DAMAGE) );
+                            combatLogger::instance()->logAction( " que a més a més causa " . $iNumWounds . " ferides (" );
+                            for( $iWound = 0 ; $iWound < $iNumWounds ; $iWound++ ){
+                                $wound = $defender->wound( WOUND_RANDOM );
+                            }
+                            combatLogger::instance()->logAction( " )" );
+                        }
+
+                        // Restamos vida
+                        (int)$defender->hp -= (int)$damage;
+
+                        combatLogger::instance()->logAction( ". A " . $defender->name . " li queden ". $defender->hp . "pv" );
+                    }
+                    else{
+                        combatLogger::instance()->logAction( $attacker->name . " falla" );
+                    }
+                }
+            } // Fail or blunt ?
+            else{
+                combatLogger::instance()->logAction( $attacker->name . " falla" );
+            }
 		
-		combatLogger::instance()->logAction( ". Restamos " . (WOUND_PAIN_MODIFIER * $attacker->wounds[ WOUND_PAIN ] ) . " debido a heridas de dolor." );
+            $res["throw"] = $throw;
+            $res["damage"] = $damage;
 		
-		combatLogger::instance()->logAction( " La tirada de ataque es de " . ($throw + $attacker->attack) . " contra una defensa de " . $defender->def . "." );
-		
-		// Damos
-		$weaponDamage = 0;
-		if ( ($throw + $attacker->attack) >= $defender->def){
-			$extraDices =  (int)(($throw + $attacker->attack - $defender->def) / 5);
-			
-			combatLogger::instance()->logAction( " Damos, superamos por " . ($throw + $attacker->attack - $defender->def) . " la defensa del enemigo. Lanzamos " . ($attacker->weaponNumDices + $extraDices) . " dados de daño. " );
-			
-			// Daño
-			$weaponDamage = throwNdD($attacker->weaponNumDices + $extraDices,$attacker->weaponBaseDice)  + $attacker->weaponModificator;
-			
-			if($attacker->weaponModificator!=0)
-				combatLogger::instance()->logAction("+" .$attacker->weaponModificator);
-			
-			combatLogger::instance()->logAction( " total de " . $weaponDamage );
-			
-			$damage =  $weaponDamage - $defender->absortion;
-			
-			if( $defender->absortion > 0 )
-				combatLogger::instance()->logAction( " que menos la absorción de " . $defender->absortion . " nos deja un total de daño de " . $damage );
-			
-			// Hemos hecho daño?
-			if ( $damage > 0 ){
-				// miramos si cambiamos el dado objetivo por estar malherido
-				/*
-				if ( $defender->hp <= $defender->fis ){
-					$defender->objDice = DICE_LOW;
-				}
-				*/
-				// Wounded?
-				if( $damage > ($defender->fis * CRITICAL_DAMAGE) ){
-					$iNumWounds = ceil( $damage / ($defender->fis * CRITICAL_DAMAGE) );
-					combatLogger::instance()->logAction( " que además causa " . $iNumWounds . " heridas (" );
-					for( $iWound = 0 ; $iWound < $iNumWounds ; $iWound++ ){
-						$wound = $defender->wound( WOUND_RANDOM );
-					}
-					combatLogger::instance()->logAction( " )" );
-				}
-				
-				// Restamos vida
-				(int)$defender->hp -= (int)$damage;
-			
-				combatLogger::instance()->logAction( ". A " . $defender->name . " le quedan ". $defender->hp . "pv" );
-			}
-			else{
-				combatLogger::instance()->logAction( $attacker->name . " falla" );
-			}
-			
-		}
-		
-		$res["throw"] = $throw;
-		$res["damage"] = $damage;
-		
-		return $res;
+            return $res;
 	}
 	
 	function calculateDistance( $pj1 , $pj2 ){
-		global $langCom;
-		
-		$haveToCalculate = true;
-		
-		combatLogger::instance()->newAction();
-		
-		// If both are in shock, no need to know who haves the distance, they'll skip turn
-		if( $pj1->wounds[ WOUND_SHOCK ] && $pj2->wounds[ WOUND_SHOCK ] ){			
-			$haveToCalculate = false;
-			
-			combatLogger::instance()->logAction( "No hay que calcular distancias porque ambos están en estado de shock" );			
-		}
-		
-		// Only fight for distance if weapons are different
-		if( $pj1->weaponType == $pj2->weaponType ){			
-			$haveToCalculate = false;
-			
-			combatLogger::instance()->logAction( "No hay que calcular distancias porque ambos usan armas de la misma distancia" );			
-		}
-			
-		if( $haveToCalculate ) {
-			combatLogger::instance()->logAction( "Competición de táctica - " );
-			// Throw while one of them win
-			do{
-				combatLogger::instance()->logAction( ". " . $pj1->name . " " );
-				$pj1Throw = throw1o3dN( $pj1->objDice , BASE_DICE , $pj1->atkBonus );
-				
-				combatLogger::instance()->logAction( ". " . $pj2->name . " " );
-				$pj2Throw = throw1o3dN( $pj2->objDice , BASE_DICE , $pj2->atkBonus );
-				
-				// Add the tactics bonus
-				$pj1Throw += + $pj1->tac;
-				$pj2Throw += + $pj2->tac;
-				
-				// Apply the pain wound if present
-				$pj1Throw -= (WOUND_PAIN_MODIFIER * $pj1->wounds[ WOUND_PAIN ] );
-				$pj2Throw -= (WOUND_PAIN_MODIFIER * $pj2->wounds[ WOUND_PAIN ] );
-			
-				combatLogger::instance()->logAction( " Malus de dolor de " . $pj1->name . " de " . (WOUND_PAIN_MODIFIER * $pj1->wounds[ WOUND_PAIN ] ) .", por lo que la tirada final es de " . $pj1Throw . "." );
-				combatLogger::instance()->logAction( " Malus de dolor de " . $pj2->name . " de " . (WOUND_PAIN_MODIFIER * $pj2->wounds[ WOUND_PAIN ] ) .", por lo que la tirada final es de " . $pj2Throw . "." );
-				
-				// IF in shock, the throw will be 0
-				$pj1Throw = $pj1->wounds[ WOUND_SHOCK ] ? 0 : $pj1Throw ;
-				$pj2Throw = $pj2->wounds[ WOUND_SHOCK ] ? 0 : $pj2Throw ;				
-			} while( $pj1Throw == $pj2Throw );
-			
-			combatLogger::instance()->logAction( ". La tirada de táctica de " . $pj1->name . " es de " . $pj1Throw . "." );
-			combatLogger::instance()->logAction( " La tirada de táctica de " . $pj2->name . " es de " . $pj2Throw . "." );			
-			
-			if( $pj1Throw > $pj2Throw ){
-				combatLogger::instance()->logAction( $pj1->name . " tiene la distancia " );
-				$this->setDistance( $pj1 , $pj2 );
-				combatLogger::instance()->logAction( "y escoje " . $langCom["distancia_" . $pj1->distance]["texto"] );
-			}
-			else{
-				combatLogger::instance()->logAction( $pj2->name . " tiene la distancia " );
-				$this->setDistance( $pj2 , $pj1 );
-				combatLogger::instance()->logAction( "y escoje " . $langCom["distancia_" . $pj2->distance]["texto"] );
-			}
-			
-		}
-		else{
-			$pj1->distance = false;
-			$pj2->distance = false;
-		}
-	}
+            global $langCom;
+
+            $haveToCalculate = true;
+
+            combatLogger::instance()->newAction();
+
+            // If both are in shock, no need to know who haves the distance, they'll skip turn
+            if( $pj1->wounds[ WOUND_SHOCK ] && $pj2->wounds[ WOUND_SHOCK ] ){			
+                $haveToCalculate = false;
+                combatLogger::instance()->logAction( "No hi ha que calcular distancies per que ambdós estan conmocionats" );
+            }
+
+            // Only fight for distance if weapons are different
+            if( $pj1->weaponType == $pj2->weaponType ){
+                $haveToCalculate = false;
+                combatLogger::instance()->logAction( "No hi ha que calcular distancies per que ambdós usen armes de la mateixa distancia" );			
+            }
+
+            if( $haveToCalculate ) {
+                combatLogger::instance()->logAction( "Competició de maniobres - " );
+                // Throw while one of them win
+                do{
+                    combatLogger::instance()->logAction( ". " . $pj1->name . " " );
+                    
+                    // IF in shock, the throw will be 0
+                    if( $pj1->wounds[ WOUND_SHOCK ] ){
+                        $pj1Throw = 0;
+                    } else {
+                        $pj1Throw = throw1o3dN( $pj1->objDice , BASE_DICE , $pj1->atkBonus );
+                        if( $pj1Throw == THROW_BLUNT ){
+                        } else {
+                            // Add the tactics bonus
+                            $pj1Throw += + $pj1->tac;
+                        
+                            // Apply the pain wound if present
+                            $pj1Throw -= (WOUND_PAIN_MODIFIER * $pj1->wounds[ WOUND_PAIN ] );
+                        
+                            combatLogger::instance()->logAction( " Malus de dolor de " . $pj1->name . " de " . (WOUND_PAIN_MODIFIER * $pj1->wounds[ WOUND_PAIN ] ) .", pel que la tirada final es de " . $pj1Throw . "." );
+                        }
+                    }
+                    
+                    combatLogger::instance()->logAction( ". " . $pj2->name . " " );
+                    // IF in shock, the throw will be 0
+                    if( $pj2->wounds[ WOUND_SHOCK ] ){
+                        $pj1Throw = 0;
+                    } else {                        
+                        $pj2Throw = throw1o3dN( $pj2->objDice , BASE_DICE , $pj2->atkBonus );
+                        
+                        if( $pj2Throw == THROW_BLUNT ) {
+                        }
+                        else {
+                            // Add the tactics bonus
+                            $pj2Throw += + $pj2->tac;
+                        
+                            // Apply the pain wound if present
+                            $pj2Throw -= (WOUND_PAIN_MODIFIER * $pj2->wounds[ WOUND_PAIN ] );
+                            combatLogger::instance()->logAction( " Malus de dolor de " . $pj2->name . " de " . (WOUND_PAIN_MODIFIER * $pj2->wounds[ WOUND_PAIN ] ) .", pel que la tirada final es de " . $pj2Throw . "." );
+                        }
+                    }
+                    
+                } while( $pj1Throw == $pj2Throw );
+
+                combatLogger::instance()->logAction( ". La tirada de tàctica de " . $pj1->name . " es de " . $pj1Throw . "." );
+                combatLogger::instance()->logAction( ". La tirada de tàctica de " . $pj2->name . " es de " . $pj2Throw . "." );			
+
+                if( $pj1Throw > $pj2Throw ){
+                    combatLogger::instance()->logAction( $pj1->name . " te la distancia " );
+                    $this->setDistance( $pj1 , $pj2 );
+                    combatLogger::instance()->logAction( "i escull " . $langCom["distancia_" . $pj1->distance]["texto"] );
+                }
+                else{
+                    combatLogger::instance()->logAction( $pj2->name . " te la distancia " );
+                    $this->setDistance( $pj2 , $pj1 );
+                    combatLogger::instance()->logAction( "i escull " . $langCom["distancia_" . $pj2->distance]["texto"] );
+                }
+            }
+            else{
+                $pj1->distance = false;
+                $pj2->distance = false;
+            }
+	} // End Calculate distance
 	
 	function setDistance( $winner , $loser ){
-		// With a short or long weapon, we'll move to our comfortable distance
-		if( $winner->weaponType != WPN_MED ){
-			if( $winner->weaponType == WPN_SHORT ){
-				$iDistance = DISTANCE_SHORT;
-			}
-			else{
-				$iDistance = DISTANCE_LONG;
-			}
-		}
-		// With a medium weapon we'll go to the worst distance for the enemy
-		else{
-			if( $loser->weaponType == WPN_SHORT ){
-				$iDistance = DISTANCE_LONG;
-			}
-			else{
-				$iDistance = DISTANCE_SHORT;
-			}
-		}
+            // With a short or long weapon, we'll move to our comfortable distance
+            if( $winner->weaponType != WPN_MED ){
+                if( $winner->weaponType == WPN_SHORT ){
+                    $iDistance = DISTANCE_SHORT;
+                }
+                else{
+                    $iDistance = DISTANCE_LONG;
+                }
+            }
+            // With a medium weapon we'll go to the worst distance for the enemy
+            else{
+                if( $loser->weaponType == WPN_SHORT ){
+                    $iDistance = DISTANCE_LONG;
+                }
+                else{
+                    $iDistance = DISTANCE_SHORT;
+                }
+            }
 		
-		$winner->distance	= $iDistance;
-		$loser->distance	= $iDistance;
+            $winner->distance	= $iDistance;
+            $loser->distance	= $iDistance;
 	}
 }
 
@@ -368,6 +380,7 @@ class CombatPj{
 	var $distance;
 	var $wounds;
 	var $atkBonus;
+        var $iIniBonus;
 	
 	function CombatPJ($name, $fis, $abs, $att, $def, $wND, $wBD,$wMD,$ini,$tac, $com , $wpn){
 		$this->name = $name;
@@ -419,9 +432,14 @@ class CombatPj{
 		return $this->objDice;
 	}
 	
-	function calNumActions($iniThrow){
-		// Minimum of 1 turn
-		$this->actions = max(1,intval($iniThrow/10));
+	function calNumActions(){
+            // Minimum of 1 turn
+            $iNumActions = 1;
+            if( $this->iIniBonus > 0 ){
+		$iNumActions = max(1,intval($this->iIniBonus/10));
+            }
+            $this->actions = $iNumActions;
+            combatLogger::instance()->logAction( $this->name . " tendrá " . $this->actions . " accion(es)");
 	}
 	
 	function wound( $woundType ){
@@ -453,21 +471,21 @@ class CombatPj{
 	}
 	
 	function canAttack(){
-		$bCanAttack = false;
+            $bCanAttack = false;
 		
-		switch( $this->weaponType ){
-			case WPN_SHORT:
-				$bCanAttack = $this->distance == DISTANCE_SHORT;
-			break;
-			case WPN_MED:
-				$bCanAttack = true;
-			break;
-			case WPN_LONG:
-				$bCanAttack = $this->distance == DISTANCE_LONG;
-			break;
-		}
+            switch( $this->weaponType ){
+                case WPN_SHORT:
+                    $bCanAttack = $this->distance == DISTANCE_SHORT;
+                    break;
+                case WPN_MED:
+                    $bCanAttack = true;
+                    break;
+                case WPN_LONG:
+                    $bCanAttack = $this->distance == DISTANCE_LONG;
+                    break;
+            }
 		
-		return $bCanAttack;
+            return $bCanAttack;
 	}
 	
 	function battleCry(){
@@ -484,6 +502,25 @@ class CombatPj{
 		
 		$this->atkBonus = $iBonus;
 	}
+        
+        function initiative(){
+            $iIni = THROW_FAIL;
+            
+            combatLogger::instance()->logAction( "Iniciativa de " . $this->name . ". " );
+            
+            $iIniThrow = throw1o3d10( $this->objDice , BASE_DICE , $this->atkBonus );
+            if( $iIniThrow > 0 ){
+                $iIni = $this->ini + $iIniThrow ;
+            }
+            else{
+                $iIni = $iIniThrow;
+            }
+            combatLogger::instance()->logAction( " + " . $this->ini . " = " .  $iIni );
+            
+            $this->iIniBonus = $iIni;
+            
+            return $iIni;
+        }
 }
 
 class combatLogger {

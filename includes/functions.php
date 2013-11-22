@@ -493,7 +493,7 @@ function generateLangJSON($data){
  * 
  */
 function throw1o3d10($obj, $base=10 , $iBonus=0){	
-	return throw1o3dN( $obj , $base , $iBonus );
+    return throw1o3dN( $obj , $base , $iBonus );
 }
 
 /**
@@ -508,28 +508,61 @@ function throw1o3d10($obj, $base=10 , $iBonus=0){
  */
  // TODO Add the blunt system. Returning false if 1 in the objetive dice and <= 5 in the next dice 
 function throw1o3dN($obj, $base=10 , $iBonus=0 ){
-	$logText = "Tirada 1o3d".$base . ":";
-	$total = 0;
-	do { 
-		$dado[0] = rand(1,$base);
-		$dado[1] = rand(1,$base);
-		$dado[2] = rand(1,$base);
-		sort($dado);
-		
-		$logText .= " (" . ($obj==0?"[":"") . $dado[0] . ($obj==0?"]":"") . "-" . ($obj==1?"[":"") . $dado[1] . ($obj==1?"]":"")  . "-" . ($obj==2?"[":"") . $dado[2] . ($obj==2?"]":"")  . ") > ";
-		
-		$total = $total + $dado[$obj];
-	} while ($dado[$obj] == $base);
-	
-	$logText .= $total;
-	
-	// If bonus, apply it
-	$total += $iBonus;
-	$logText .= ($iBonus!=0 ? " + " . $iBonus : '' );
-	
-	combatLogger::instance()->logAction( $logText );
-	
-	return $total;
+    $bFirstThrow = true; // Blunts apply only in the first Throw
+    $logText = "Tirada 1o3d".$base . ":";
+    $total = 0;
+    do { 
+        $dado[0] = rand(1,$base);
+        $dado[1] = rand(1,$base);
+        $dado[2] = rand(1,$base);
+        sort($dado);
+
+        $logText .= " (" . 
+            ($obj==DICE_LOW?"[":"") . $dado[DICE_LOW] . ($obj==DICE_LOW?"]":"") . 
+            "-" . 
+            ($obj==DICE_MED?"[":"") . $dado[DICE_MED] . ($obj==DICE_MED?"]":"")  . 
+            "-" . 
+            ($obj==DICE_HIG?"[":"") . $dado[DICE_HIG] . ($obj==DICE_HIG?"]":"")  . 
+            ") > ";
+        
+        // 1 in the obj. dice it's a direct fail, and maybe, a blunt
+        if( $bFirstThrow && $dado[$obj]==1 ){
+            $total = THROW_FAIL;
+            // With High objective dice cannot be blunt
+            if( $obj != DICE_HIG ){
+                $iBluntDice = $obj+1;
+                // With 1-5 result in the next dice, it's a blunt
+                if( $dado[$iBluntDice] <= ($base/2) ){
+                    $total = THROW_BLUNT;
+                }
+            }
+            break; // Exit while, no more throws
+        }
+
+        $total = $total + $dado[$obj];
+        $bFirstThrow = false;
+    } while ($dado[$obj] == $base);
+
+    if( $total > 0 ){
+        $logText .= $total;
+        
+        // If bonus, apply it
+        $total += $iBonus;
+        $logText .= ($iBonus!=0 ? " + " . $iBonus : '' );
+    }
+    else{
+        // Log the corresponding failiure
+        if( $total == THROW_FAIL ){
+            $logText .= " Errada ";
+        }
+        else{
+            $logText .= " Pifia ";
+        }
+    }
+
+    combatLogger::instance()->logAction( $logText );
+
+    return $total;
 }
 
 /**
